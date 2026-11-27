@@ -167,6 +167,7 @@ li .d{color:var(--mute);font-size:12.5px;min-width:46px}li .n{flex:1;min-width:0
     <div class="card"><h2>এ মাসের চিত্র</h2><div class="ins" id="ins"></div><button class="sec more noexp" id="insMore">সব তথ্য দেখুন ▾</button></div>
     <div class="two">
       <div class="card"><h2>দিনভিত্তিক খরচ</h2><div class="trend" id="trendH"></div><div class="meta"><span>১</span><span id="dimH"></span></div></div>
+      <div class="card tip" id="dueBn" hidden></div>
       <div class="card"><h2>কিস্তির তালিকা</h2><ul id="upc"></ul></div>
     </div>
     <div class="card"><h2>সঞ্চয় লক্ষ্য – কতটা জমেছে</h2><div id="gHome"></div></div>
@@ -349,12 +350,19 @@ function calc(){
   ls.forEach(function(x){if(x.left>0||x.l.paid[M])emi+=x.eb;if(!x.left)fin++;debt+=x.lb;debtT+=x.tb;doneT+=x.db;maxMl=Math.max(maxMl,x.ml)});
   var send=0,sendA=0;S.rms.forEach(function(e){if(e.d.slice(0,7)===M){send+=e.b;sendA+=e.a}});var sd=S.ded?send:0,sv=+S.sv||0,rem=inc-emi-spent-sd,free=rem-sv,elapsed=isCur?now.getDate():dim,daysLeft=isCur?dim-now.getDate()+1:dim,avg=spent/Math.max(1,elapsed);
   var topCat=CATS.map(function(x){return x[0]}).sort(function(a,b){return by[b]-by[a]})[0];if(!by[topCat])topCat="";
-  var nxt=null;ls.forEach(function(x){if(x.left>0&&!x.l.paid[M]){var d=+x.l.dd||1;if(!isCur||d>=now.getDate()){if(!nxt||d<nxt.d)nxt={d:d,n:x.l.n}}}});
+  var nxt=null;
+  if(isCur){var td=new Date(now.getFullYear(),now.getMonth(),now.getDate()),cm=ymd(now).slice(0,7);
+    ls.forEach(function(x){if(!(x.left>0))return;var l=x.l,yy=now.getFullYear(),mm=now.getMonth()+(l.paid[cm]?1:0),dm=new Date(yy,mm+1,0).getDate(),dt=new Date(yy,mm,Math.min(+l.dd||1,dm)),df=Math.round((dt-td)/864e5);
+      if(!nxt||df<nxt.df)nxt={df:df,d:dt.getDate(),n:l.n,amt:x.eb}})}
+  else ls.forEach(function(x){if(x.left>0&&!x.l.paid[M]){var d=+x.l.dd||1;if(!nxt||d<nxt.d)nxt={d:d,n:x.l.n,df:null}}});
   return{pby:pby,pm:pm,send:send,sendA:sendA,sd:sd,inc:inc,emi:emi,spent:spent,sv:sv,rem:rem,free:free,dim:dim,isCur:isCur,daysLeft:daysLeft,avg:avg,proj:isCur?avg*dim:spent,prev:prev,cnt:cnt,big:big,by:by,pd:pd,ls:ls,debt:debt,debtT:debtT,doneT:doneT,maxMl:maxMl,fin:fin,topCat:topCat,nxt:nxt}}
 function trend(el,r){var mx=Math.max.apply(null,Object.keys(r.pd).map(function(d){return r.pd[d]}).concat([1])),h="";
   for(var d=1;d<=r.dim;d++){var v=r.pd[d]||0;h+='<i title="'+d+' তারিখ: '+fmt(v)+'" style="height:'+(v/mx*100)+'%"'+(r.isCur&&d===now.getDate()?' class="t"':'')+'></i>'}
   el.innerHTML=h}
+function nxtTxt(n){if(n.df===null)return n.d+" তারিখ – "+n.n;
+  return n.df<0?"⚠ বকেয়া – "+n.n+" ("+n.d+" তারিখ, "+(-n.df)+" দিন দেরি)":n.df===0?"আজই – "+n.n+" এর কিস্তি":n.d+" তারিখ – "+n.n+" ("+n.df+" দিন বাকি)"}
 function renderHome(r){
+  var bn=$("dueBn");if(bn){if(r.nxt&&r.nxt.df!==null&&r.nxt.df<=5){bn.hidden=false;bn.className="card tip"+(r.nxt.df<=3?" warn2":"");bn.innerHTML="<b>"+(r.nxt.df<0?"⚠ কিস্তি বকেয়া":r.nxt.df===0?"⏰ আজ কিস্তির দিন":"🔔 কিস্তির সময় কাছে")+"</b><br>"+esc(nxtTxt(r.nxt))+" · "+fmt(r.nxt.amt)}else bn.hidden=true}
   var cs=S.disp==="SAR"?"SR":"৳";document.querySelectorAll(".coin b").forEach(function(b){b.textContent=cs;b.classList.toggle("sr",cs==="SR")});count($("rem"),r.rem);$("rem").className="big"+(r.rem<0?" neg":"");
   $("tip").textContent=!r.inc?"শুরু করতে নিচে মাসিক বেতন লিখুন":r.rem<0?"সাবধান! খরচ ও কিস্তি আয়ের চেয়ে "+fmt(-r.rem)+" বেশি।":(r.isCur?"আজ থেকে দিনে প্রায় "+fmt(Math.max(0,r.free)/r.daysLeft)+" খরচ করা নিরাপদ (বাকি "+r.daysLeft+" দিন)":"সঞ্চয় লক্ষ্যের পর "+fmt(Math.max(0,r.free))+" বাকি ছিল");
   $("sarEq").textContent=S.rate>0&&r.inc?(S.disp==="SAR"?"≈ ৳"+Math.round(r.rem).toLocaleString("en-IN"):"≈ "+Math.round(r.rem/S.rate).toLocaleString("en-IN")+" SAR"):"";
@@ -375,13 +383,13 @@ function renderHome(r){
    ["সবচেয়ে বেশি খরচ",r.topCat?r.topCat+" ("+fmt(r.by[r.topCat])+")":"—",""],
    ["সবচেয়ে বড় খরচ",r.big?r.big.n+" – "+fmt(r.big.v):"—",""],
    ["সঞ্চয় লক্ষ্য",r.sv?(r.free>=0?"পূরণ হবে ✓":"ঘাটতি "+fmt(-r.free)):"লক্ষ্য দিন",r.sv&&r.free<0?"warn":r.sv?"good":""],
-   ["পরবর্তী কিস্তি",r.nxt?r.nxt.d+" তারিখ – "+r.nxt.n:(r.ls.length?"এ মাসে বাকি নেই":"লোন নেই"),""],
+   ["পরবর্তী কিস্তি",r.nxt?nxtTxt(r.nxt):(r.ls.length?"সব লোন শোধ":"লোন নেই"),r.nxt&&r.nxt.df!==null&&r.nxt.df<=3?"warn":""],
    ["এ মাসে দেশে পাঠিয়েছি",RF(r.sendA,r.send),""]];
   $("ins").innerHTML=I.map(function(i,n){return'<div class="'+i[2]+(n>5?" x2":"")+'"><small>'+i[0]+'</small><b>'+esc(i[1])+'</b></div>'}).join("");
   trend($("trendH"),r);$("dimH").textContent=r.dim;
   var u=r.ls.filter(function(x){return x.left>0||x.l.paid[M]}).sort(function(a,b){return a.l.dd-b.l.dd});
   $("upc").innerHTML=u.length?u.map(function(x){var p=x.l.paid[M],late=!p&&r.isCur&&now.getDate()>x.l.dd;
-    return'<li><span class="dot" style="background:'+(p?"var(--jade)":late?"var(--coral)":"var(--amber)")+'"></span><span class="d">'+x.l.dd+' তা.</span><span class="n">'+esc(x.l.n)+'</span><span class="a" style="color:'+(p?"var(--jade)":late?"var(--coral)":"var(--ink)")+'">'+(p?"দেওয়া ✓":fmt(x.eb))+'</span></li>'}).join(""):'<li class="empty">এখনও কোনো লোন যোগ করা হয়নি।</li>'}
+    return'<li><span class="dot" style="background:'+(p?"var(--jade)":late?"var(--coral)":"var(--amber)")+'"></span><span class="d">'+x.l.dd+' তা.</span><span class="n">'+esc(x.l.n)+(!p&&r.isCur?'<br><small style="color:var(--mute)">'+(late?(now.getDate()-x.l.dd)+' দিন দেরি':now.getDate()===+x.l.dd?'আজই':(x.l.dd-now.getDate())+' দিন বাকি')+'</small>':'')+'</span><span class="a" style="color:'+(p?"var(--jade)":late?"var(--coral)":"var(--ink)")+'">'+(p?"দেওয়া ✓":fmt(x.eb))+'</span></li>'}).join(""):'<li class="empty">এখনও কোনো লোন যোগ করা হয়নি।</li>'}
 function endOff(x){return Math.max(0,x.ml-(x.l.paid[ymd(now).slice(0,7)]?0:1))}
 function renderLoans(r){
   count($("lDebt"),r.debt);count($("lEmi"),r.emi);$("lFree").textContent=r.maxMl?mname(Math.max.apply(null,r.ls.map(function(x){return x.left>0&&x.l.e?endOff(x):0}))):(S.loans.length?"শেষ!":"—");
@@ -392,9 +400,9 @@ function renderLoans(r){
     '<div class="lv">'+f(x.left)+' <small>বাকি</small></div>'+
     '<div class="bar"><span style="width:'+x.pct+'%"></span></div>'+
     '<div class="meta"><span>'+x.pct.toFixed(0)+'% শোধ · মোট '+f(l.t)+'</span><span>'+(x.left?'কিস্তি '+f(l.e)+' · '+l.dd+' তারিখ · আরও ~'+x.ml+' মাস':'শোধ শেষ 🎉')+'</span></div>'+
-    (x.left&&l.e?'<div class="meta" style="margin-top:8px"><span>🏁 শেষ কিস্তি: '+mname(endOff(x))+'</span></div>':'')+'<div class="lx noexp"><input class="pm" type="month" value="'+M+'" aria-label="কোন মাসের কিস্তি"><button data-a="pay">কিস্তি দিলাম</button></div>'+
+    (x.left&&l.e?'<div class="meta" style="margin-top:8px"><span>🏁 শেষ কিস্তি: '+mname(endOff(x))+'</span></div>':'')+'<div class="meta" style="margin-top:8px"><span>আগের শোধ '+f(+l.p||0)+' · কিস্তি '+pm.length+'×'+f(l.e)+' · অতিরিক্ত '+f(+l.x||0)+'</span></div>'+(x.left&&r.isCur?(function(){var td=new Date(now.getFullYear(),now.getMonth(),now.getDate()),cm=ymd(now).slice(0,7),mm=now.getMonth()+(l.paid[cm]?1:0),dm=new Date(now.getFullYear(),mm+1,0).getDate(),dt=new Date(now.getFullYear(),mm,Math.min(+l.dd||1,dm)),df=Math.round((dt-td)/864e5);return'<div class="meta" style="margin-top:6px"><span'+(df<=3?' style="color:var(--coral);font-weight:600"':'')+'>'+(df<0?'⚠ বকেয়া – '+(-df)+' দিন দেরি':df===0?'⏰ আজই কিস্তির দিন':'🔔 পরবর্তী কিস্তি '+dt.getDate()+' তারিখ ('+df+' দিন বাকি)')+'</span></div>'})():'')+'<div class="lx noexp"><input class="pm" type="month" value="'+M+'" aria-label="কোন মাসের কিস্তি"><button data-a="pay">কিস্তি দিলাম</button></div>'+
     (pm.length?'<div class="meta" style="margin-top:10px">মোট '+pm.length+' টি কিস্তি দেওয়া হয়েছে</div>':'')+'<div class="chips">'+(pm.length?pm.map(function(k){return'<button class="chip2" data-a="unpay" data-m="'+k+'" title="মুছতে চাপুন">'+mlabel(k)+' ✓</button>'}).join(""):'<span class="meta">কোনো কিস্তি দেওয়া হয়নি</span>')+'</div>'+
-    '<div class="lx noexp"><input class="ex" type="number" inputmode="decimal" min="0" placeholder="অতিরিক্ত শোধ" aria-label="অতিরিক্ত শোধ"><button data-a="extra">যোগ</button><button class="sec" data-a="edit">সম্পাদনা</button><button class="ghost" data-a="del">মুছুন</button></div></div>'}).join(""):
+    '<div class="lx noexp"><input class="ex" type="number" inputmode="decimal" min="0" placeholder="অতিরিক্ত শোধ" aria-label="অতিরিক্ত শোধ"><button data-a="extra">যোগ</button>'+(+l.x>0?'<button class="sec" data-a="xclear">অতিরিক্ত মুছুন</button>':'')+'<button class="sec" data-a="edit">সম্পাদনা</button><button class="ghost" data-a="del">মুছুন</button></div></div>'}).join(""):
     '<div class="card empty">এখনও কোনো লোন নেই। উপরের ফর্ম থেকে প্রথম লোনটি যোগ করুন।</div>'}
 function renderDaily(r){
   count($("dTot"),r.spent);count($("dAvg"),r.avg);count($("dCnt"),r.cnt,function(n){return Math.round(n)+" টি"});
@@ -531,6 +539,7 @@ $("efm").addEventListener("change",function(){S.ef.m=+this.value;save();renderAl
 $("loans").addEventListener("click",function(e){var b=e.target.closest("[data-a]");if(!b)return;var card=b.closest(".ln"),id=+card.dataset.id,l=S.loans.filter(function(x){return x.id===id})[0];if(!l)return;var a=b.dataset.a;
   if(a==="pay"){var pmv=card.querySelector(".pm").value||M;l.paid[pmv]=true;note("✓ "+mlabel(pmv)+" এর কিস্তি যোগ হয়েছে")}
   else if(a==="unpay"){delete l.paid[b.dataset.m]}
+  else if(a==="xclear"){l.x=0}
   else if(a==="extra"){var v=+card.querySelector(".ex").value;if(!(v>0))return;l.x=(+l.x||0)+v}
   else if(a==="edit"){editId=id;$("ln").value=l.n;$("lt").value=l.t;$("lc").value=l.c;$("le").value=l.e;$("ld").value=l.dd;$("lp").value=l.p||"";fPaid=Object.assign({},l.paid);$("fpm").value=M;renderFP();$("lfT").textContent="লোন সম্পাদনা";$("lAdd").textContent="আপডেট করুন";$("lCancel").hidden=false;$("lform").hidden=false;$("lform").scrollIntoView({behavior:"smooth"});return}
   else if(a==="del"){if(arm!==id){arm=id;b.textContent="আবার চাপুন";setTimeout(function(){arm=null;if(b.isConnected)b.textContent="মুছুন"},3000);return}
